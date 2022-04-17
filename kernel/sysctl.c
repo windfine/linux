@@ -2453,6 +2453,7 @@ static struct ctl_table vm_table[] = {
 	{ }
 };
 
+int pgt_dump_process_id = -1;
 static struct ctl_table debug_table[] = {
 #ifdef CONFIG_SYSCTL_EXCEPTION_TRACE
 	{
@@ -2463,6 +2464,13 @@ static struct ctl_table debug_table[] = {
 		.proc_handler	= proc_dointvec
 	},
 #endif
+	{
+		.procname = "ptdump_process_id",
+		.data = &pgt_dump_process_id,
+		.maxlen = sizeof(int),
+		.mode = 0644,
+		.proc_handler = proc_dointvec
+	},
 	{ }
 };
 

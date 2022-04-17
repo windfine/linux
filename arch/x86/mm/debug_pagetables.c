@@ -5,6 +5,8 @@
 #include <linux/seq_file.h>
 #include <linux/pgtable.h>
 
+extern int pgt_dump_process_id;
+
 static int ptdump_show(struct seq_file *m, void *v)
 {
 	ptdump_walk_pgd_level_debugfs(m, &init_mm, false);
@@ -21,6 +23,33 @@ static int ptdump_curknl_show(struct seq_file *m, void *v)
 }
 
 DEFINE_SHOW_ATTRIBUTE(ptdump_curknl);
+
+static int ptdump_process_show(struct seq_file *m, void *v)
+{
+	struct mm_struct *mm;
+
+	if (pgt_dump_process_id > 0)
+	{
+		struct task_struct* task_oe =
+			find_task_by_vpid((pid_t)pgt_dump_process_id);
+		seq_printf(m, "Page tables for process id = %d\n",
+				pgt_dump_process_id);
+
+		if (task_oe == NULL) {
+			seq_printf(m, "Process DNE!\n");
+			return 0;
+		}
+		mm = task_oe->mm;
+	} else {
+		seq_printf(m, "process id is invalid!\n");
+		return 0;
+	}
+
+	ptdump_walk_pgd_level_debugfs(m, mm, true);
+	return 0;
+}
+
+DEFINE_SHOW_ATTRIBUTE(ptdump_process);
 
 #ifdef CONFIG_PAGE_TABLE_ISOLATION
 static int ptdump_curusr_show(struct seq_file *m, void *v)
@@ -53,6 +82,8 @@ static int __init pt_dump_debug_init(void)
 	debugfs_create_file("kernel", 0400, dir, NULL, &ptdump_fops);
 	debugfs_create_file("current_kernel", 0400, dir, NULL,
 			    &ptdump_curknl_fops);
+	debugfs_create_file("process", 0400, dir, NULL,
+			    &ptdump_process_fops);
 
 #ifdef CONFIG_PAGE_TABLE_ISOLATION
 	debugfs_create_file("current_user", 0400, dir, NULL,

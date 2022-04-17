@@ -32,6 +32,7 @@ struct pg_state {
 	pgprotval_t effective_prot;
 	pgprotval_t prot_levels[5];
 	unsigned long start_address;
+	unsigned long start_phy_address;
 	const struct addr_marker *marker;
 	unsigned long lines;
 	bool to_dmesg;
@@ -304,10 +305,21 @@ static void note_page(struct ptdump_state *pt_st, unsigned long addr, int level,
 		pt_dump_seq_printf(m, st->to_dmesg, "---[ %s ]---\n",
 				   st->marker->name);
 	} else if (new_prot != cur || new_eff != eff || level != st->level ||
-		   addr >= st->marker[1].start_address) {
+		   addr >= st->marker[1].start_address || val) {
 		const char *unit = units;
-		unsigned long delta;
+		unsigned long delta, curr_phy_address;
 		int width = sizeof(unsigned long) * 2;
+
+		delta = addr - st->start_address;
+		if (new_prot == cur && new_eff == eff && level == st->level
+			&& addr < st->marker[1].start_address
+			&& (val & PTE_PFN_MASK) - st->start_phy_address == delta)
+			return;
+
+		if (st->start_phy_address == 0)
+			curr_phy_address = 0;
+		else
+			curr_phy_address = st->start_phy_address + delta;
 
 		if (st->check_wx && (eff & _PAGE_RW) && !(eff & _PAGE_NX))
 			note_wx(st, addr);
@@ -317,12 +329,14 @@ static void note_page(struct ptdump_state *pt_st, unsigned long addr, int level,
 		 */
 		if (!st->marker->max_lines ||
 		    st->lines < st->marker->max_lines) {
-			pt_dump_seq_printf(m, st->to_dmesg,
-					   "0x%0*lx-0x%0*lx   ",
-					   width, st->start_address,
-					   width, addr);
 
-			delta = addr - st->start_address;
+			pt_dump_seq_printf(m, st->to_dmesg,
+					   "0x%0*lx-0x%0*lx, phy: 0x%0*lx-0x%0*lx",
+					   width, st->start_address,
+					   width, addr,
+					   width, st->start_phy_address,
+					   width, curr_phy_address);
+
 			while (!(delta & 1023) && unit[1]) {
 				delta >>= 10;
 				unit++;
@@ -356,6 +370,7 @@ static void note_page(struct ptdump_state *pt_st, unsigned long addr, int level,
 		}
 
 		st->start_address = addr;
+		st->start_phy_address = PTE_PFN_MASK & val;
 		st->current_prot = new_prot;
 		st->effective_prot = new_eff;
 		st->level = level;
